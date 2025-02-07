@@ -43,19 +43,21 @@ def main():
     )
 
     # Output folder selection
-    output_folder = st.text_input("Select output folder", value=os.getcwd())
+    output_folder = st.text_input(
+        "Select output folder", value=os.path.join(os.getcwd(), "out")
+    )
 
     # Whisper model selection
     model_size = st.selectbox(
         "Choose Whisper model size",
-        ["turbo", "tiny", "base", "small", "medium", "large"],
-        index=0,
+        ["tiny", "base", "small", "medium", "turbo", "large"],
+        index=4,
     )
 
     # Language selection
     language = st.selectbox(
         "Select language",
-        ["english", "russian", "spanish", "french", "german", "chinese"],
+        ["english", "russian", "french", "spanish", "german", "japanese", "chinese"],
         index=1,
     )
 

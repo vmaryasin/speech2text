@@ -31,4 +31,14 @@ chmod a+x run.sh
 bash run.sh
 ```
 
+## known issues
+On OSX there is aproblem with SSL certificates. Running a following command with the proper python version is a valid workaround as explained here: https://stackoverflow.com/questions/27835619/urllib-and-ssl-certificate-verify-failed-error/42334357#42334357
+```
+/Applications/Python\ 3.11/Install\ Certificates.command
+```
+
+## TODO
+ - Add the progress bar
+ - check multiple files download
+ - what about launching from other folders?
 
