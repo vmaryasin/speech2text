@@ -1,7 +1,15 @@
 import os
+import time
 
 import streamlit as st
 import whisper
+from pyannote.audio import Pipeline  # noqa: E402
+from pyannote.audio.pipelines.utils.hook import ProgressHook
+from pydub import AudioSegment
+
+from src.merge_whisper_pyannot import diarize_text, save_merge, save_undiarized
+
+WHISPER_TOKEN = ""  # Put your huggingface authentication token here
 
 
 def transcribe_audio(audio_path, model_size, language):
@@ -13,80 +21,126 @@ def transcribe_audio(audio_path, model_size, language):
         language (str): Language for transcription.
 
     Returns:
-        str: The transcribed text.
+        Dict: Full whisper output.
     """
     model = whisper.load_model(model_size)
     result = model.transcribe(audio_path, language=language, verbose=False)
-    return result["text"]
-
-
-def format_transcription(text):
-    """Formats the transcribed text so that each sentence starts on a new line.
-
-    Args:
-        text (str): The transcribed text.
-
-    Returns:
-        str: Formatted text with sentences on separate lines.
-    """
-    sentences = text.replace(". ", "\n").replace("? ", "\n").replace("! ", "\n")
-    return sentences
+    return result
 
 
 def main():
     """Main function to run the Streamlit application for Whisper speech-to-text transcription."""
-    st.title("Whisper Speech-to-Text Transcription")
+    st.title("Whisper Speech-to-Text")
 
     # File uploader
     uploaded_file = st.file_uploader(
         "Upload an audio file", type=["mp3", "wav", "m4a", "ogg"]
     )
 
-    # Output folder selection
-    output_folder = st.text_input(
-        "Select output folder", value=os.path.join(os.getcwd(), "out")
-    )
+    col1, col2 = st.columns(2)
 
-    # Whisper model selection
-    model_size = st.selectbox(
-        "Choose Whisper model size",
-        ["tiny", "base", "small", "medium", "turbo", "large"],
-        index=4,
-    )
+    with col1:
+        # Whisper model selection
+        model_size = st.selectbox(
+            "Choose Whisper model size",
+            ["tiny", "base", "small", "medium", "turbo", "large"],
+            index=4,
+        )
 
-    # Language selection
-    language = st.selectbox(
-        "Select language",
-        ["english", "russian", "french", "spanish", "german", "japanese", "chinese"],
-        index=1,
-    )
+        # Diarization options
+        help_message = "Turn speaker segmentation on/off to save time"
+        do_diarize = st.toggle(
+            "Segment speakers",
+            value=True,
+            key=None,
+            help=help_message,
+            on_change=None,
+            label_visibility="visible",
+        )
+
+    with col2:
+        # Language selection
+        language = st.selectbox(
+            "Select language",
+            [
+                "english",
+                "russian",
+                "french",
+                "spanish",
+                "german",
+                "japanese",
+                "chinese",
+            ],
+            index=1,
+        )
+        num_speakers = st.number_input(
+            "Select number of speakers",
+            step=1,
+            value=2,
+            min_value=0,
+            disabled=not do_diarize,
+        )
 
     if st.button("Start Transcription"):
-        if uploaded_file is not None and output_folder:
+        if uploaded_file is not None:
+            output_folder = os.path.join(os.getcwd(), "out")
             os.makedirs(output_folder, exist_ok=True)  # Ensure output folder exists
 
             file_extension = uploaded_file.name.split(".")[-1]
             file_name = os.path.splitext(uploaded_file.name)[0] + ".txt"
-            temp_audio_path = os.path.join("temp_audio." + file_extension)
-
-            with open(temp_audio_path, "wb") as f:
-                f.write(uploaded_file.read())
-
-            st.text("Transcribing...")
-            transcribed_text = transcribe_audio(temp_audio_path, model_size, language)
-            formatted_text = format_transcription(transcribed_text)
-
             output_path = os.path.join(output_folder, file_name)
-            with open(output_path, "w") as f:
-                f.write(formatted_text)
+
+            # TODO improve this, bad format handling
+            if file_extension == "m4a":
+                file_extension = "wav"
+                temp_audio_path = os.path.join("temp_audio." + file_extension)
+                audio = AudioSegment.from_file(uploaded_file)
+                audio.export(temp_audio_path, format="wav")
+            else:
+                temp_audio_path = os.path.join("temp_audio." + file_extension)
+                with open(temp_audio_path, "wb") as f:
+                    f.write(uploaded_file.read())
+
+            start_time = time.time()
+            st.text("Transcribing...")
+            whisper_output = transcribe_audio(temp_audio_path, model_size, language)
+
+            # TODO: diarization is not very well done
+            if do_diarize:
+                pass
+                # Grabbing the pyannot pipeline
+                diarization_pipe = Pipeline.from_pretrained(
+                    "pyannote/speaker-diarization-3.1",
+                    use_auth_token=WHISPER_TOKEN,
+                )
+
+                st.text("Segmenting...")
+                with ProgressHook() as hook:
+                    diarization_result = diarization_pipe(
+                        temp_audio_path, hook=hook, num_speakers=num_speakers
+                    )
+
+                st.text("Merging and saving output.")
+                if num_speakers == 0:
+                    num_speakers = None
+                final_result = diarize_text(whisper_output, diarization_result)
+                save_merge(final_result, output_path)
+            else:
+                save_undiarized(whisper_output, output_path, do_format=True)
+
+            print("Total processing time: %s seconds" % (time.time() - start_time))
 
             st.success("Transcription completed!")
-            st.download_button(
-                "Download Transcription", formatted_text, file_name=file_name
-            )
+            with open(output_path, "rb") as file:
+                st.download_button(
+                    "Download Transcription",
+                    data=file,
+                    file_name=file_name,
+                    mime="text/plain",
+                )
             os.remove(temp_audio_path)  # Cleanup temporary file
         else:
-            st.error("Please upload a file and select an output folder.")
+            st.error("Please upload a file")
 
 
 if __name__ == "__main__":

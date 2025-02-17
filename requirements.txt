@@ -1,3 +1,7 @@
 setuptools-rust
 openai-whisper
 streamlit
+pydub
+fire
+loguru
+pyannot.audio
