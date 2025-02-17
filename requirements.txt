@@ -4,4 +4,4 @@ streamlit
 pydub
 fire
 loguru
-pyannot.audio
+pyannote.audio
