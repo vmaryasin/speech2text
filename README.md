@@ -38,7 +38,8 @@ On OSX there is aproblem with SSL certificates. Running a following command with
 ```
 
 ## TODO
- - Add the progress bar
- - check multiple files download
+ - package everything properly
+ - Add the progress bar to streamlit
  - what about launching from other folders?
+ - can I do better than hardcoding my token?
 

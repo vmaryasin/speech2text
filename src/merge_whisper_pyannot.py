@@ -89,4 +89,9 @@ def format_transcription(text):
 
 
 def save_undiarized(whisper_output, output_filepath, do_format=True):
-    formatted_output = format_transcription(whisper_output["text"])
+    if do_format:
+        output = format_transcription(whisper_output["text"])
+    else:
+        output = whisper_output["text"]
+    with open(output_filepath, "w") as f:
+        f.write(output)

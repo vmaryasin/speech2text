@@ -1,7 +1,16 @@
 import os
 import time
+import warnings
+
+warnings.filterwarnings("ignore", category=UserWarning)
+
+import logging
+
+logger = logging.getLogger("whisperStreamlit")
+logging.getLogger("speechbrain").setLevel(logging.WARNING)
 
 import streamlit as st
+import torch
 import whisper
 from pyannote.audio import Pipeline  # noqa: E402
 from pyannote.audio.pipelines.utils.hook import ProgressHook
@@ -9,7 +18,11 @@ from pydub import AudioSegment
 
 from src.merge_whisper_pyannot import diarize_text, save_merge, save_undiarized
 
-WHISPER_TOKEN = ""  # Put your huggingface authentication token here
+torch.classes.__path__ = [
+    os.path.join(torch.__path__[0], torch.classes.__file__)
+]  # https://discuss.streamlit.io/t/error-in-torch-with-streamlit/90908/4
+
+WHISPER_TOKEN = "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"
 
 
 def transcribe_audio(audio_path, model_size, language):
@@ -104,6 +117,7 @@ def main():
             start_time = time.time()
             st.text("Transcribing...")
             whisper_output = transcribe_audio(temp_audio_path, model_size, language)
+            save_undiarized(whisper_output, output_path[:-4] + "_whisper.txt")
 
             # TODO: diarization is not very well done
             if do_diarize:
@@ -120,7 +134,7 @@ def main():
                         temp_audio_path, hook=hook, num_speakers=num_speakers
                     )
 
-                st.text("Merging and saving output.")
+                st.text("Merging and saving output...")
                 if num_speakers == 0:
                     num_speakers = None
                 final_result = diarize_text(whisper_output, diarization_result)
@@ -128,7 +142,9 @@ def main():
             else:
                 save_undiarized(whisper_output, output_path, do_format=True)
 
-            print("Total processing time: %s seconds" % (time.time() - start_time))
+            logger.info(
+                f"Finished file. Total processing time: {time.time() - start_time} seconds"
+            )
 
             st.success("Transcription completed!")
             with open(output_path, "rb") as file:
@@ -139,6 +155,7 @@ def main():
                     mime="text/plain",
                 )
             os.remove(temp_audio_path)  # Cleanup temporary file
+            uploaded_file = []
         else:
             st.error("Please upload a file")
 
