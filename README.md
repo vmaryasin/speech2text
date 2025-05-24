@@ -18,10 +18,7 @@ scoop install ffmpeg
 ```
 Then setup the environment
 ```
-python3 -m venv venv
-source venv/bin/activate
-pip install --upgrade pip wheel setuptools
-pip install -r requirements.txt
+bash install.sh
 ```
 
 ## Running the app
